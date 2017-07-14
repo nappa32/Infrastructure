@@ -30,7 +30,7 @@ Parameters:
     Type: String
 Resources:
   VPC:
-    Type: AWS::EC2::VPC
+    Type: "AWS::EC2::VPC"
     Properties:
       CidrBlock: 10.0.0.0/16
       EnableDnsSupport: true
@@ -43,6 +43,11 @@ Resources:
           Value: !Ref EnvironmentType
         - Key: Name
           Value: !Sub Platform-${EnvironmentType}
+  VPCIpv6CidrBlock:
+    Type: "AWS::EC2::VPCCidrBlock"
+    Properties:
+      AmazonProvidedIpv6CidrBlock: true
+      VpcId: !Ref VPC
   InternetGateway:
     Type: "AWS::EC2::InternetGateway"
     Properties:
@@ -89,6 +94,11 @@ Resources:
           Value: !Ref EnvironmentType
         - Key: Name
           Value: !Sub Platform-${EnvironmentType}-1
+  Subnet1Ipv6CidrBlock:
+    Type: "AWS::EC2::SubnetCidrBlock"
+    Properties:
+      Ipv6CidrBlock: !Ref VPCIpv6CidrBlock
+      SubnetId: !Ref Subnet1
   Subnet2:
     Type: "AWS::EC2::Subnet"
     Properties:
@@ -102,6 +112,11 @@ Resources:
           Value: !Ref EnvironmentType
         - Key: Name
           Value: !Sub Platform-${EnvironmentType}-2
+  Subnet2Ipv6CidrBlock:
+    Type: "AWS::EC2::SubnetCidrBlock"
+    Properties:
+      Ipv6CidrBlock: !Ref VPCIpv6CidrBlock
+      SubnetId: !Ref Subnet2
   Subnet1RouteTableAssociation:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
