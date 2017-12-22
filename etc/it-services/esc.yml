@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Creates an ESC cluster for various IT services to run in
+Resources:
+  # ECS Cluster
+  ECSCluster:
+    Type: "AWS::ECS::Cluster"
+  # Unifi Controller
+  UnifiControllerVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Project
+          Value: it-services
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-unifi
+        - Key: "prx:cloudformation:stack-name"
+          Value: !Ref AWS::StackName
+        - Key: "prx:cloudformation:stack-id"
+          Value: !Ref AWS::StackId
+  UnifiControllerInternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Project
+          Value: it-services
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-unifi
+        - Key: "prx:cloudformation:stack-name"
+          Value: !Ref AWS::StackName
+        - Key: "prx:cloudformation:stack-id"
+          Value: !Ref AWS::StackId
+  UnifiControllerGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref UnifiControllerVPC
+      InternetGatewayId: !Ref UnifiControllerInternetGateway
+  UnifiControllerRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref UnifiControllerVPC
+      Tags:
+        - Key: Project
+          Value: it-services
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-unifi
+        - Key: "prx:cloudformation:stack-name"
+          Value: !Ref AWS::StackName
+        - Key: "prx:cloudformation:stack-id"
+          Value: !Ref AWS::StackId
+  UnifiControllerRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: UnifiControllerGatewayAttachment
+    Properties:
+      RouteTableId: !Ref UnifiControllerRouteTable
+      GatewayId: !Ref UnifiControllerInternetGateway
+      DestinationCidrBlock: 0.0.0.0/0
+  UnifiControllerSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref UnifiControllerVPC
+      AvailabilityZone: !Join ["", [!Ref "AWS::Region", a]]
+      CidrBlock: 10.0.1.0/24
+      Tags:
+        - Key: Project
+          Value: it-services
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-unifi-1
+        - Key: "prx:cloudformation:stack-name"
+          Value: !Ref AWS::StackName
+        - Key: "prx:cloudformation:stack-id"
+          Value: !Ref AWS::StackId
+  UnifiControllerSubnet1RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref UnifiControllerSubnet1
+      RouteTableId: !Ref UnifiControllerRouteTable
+  UnifiControllerNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref UnifiControllerVPC
+      Tags:
+        - Key: Project
+          Value: it-services
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-unifi
+        - Key: "prx:cloudformation:stack-name"
+          Value: !Ref AWS::StackName
+        - Key: "prx:cloudformation:stack-id"
+          Value: !Ref AWS::StackId
+  UnifiControllerInboudTrafficNetworkAclEntry:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      NetworkAclId: !Ref UnifiControllerNetworkAcl
+      Protocol: -1 # All
+      RuleAction : allow
+      RuleNumber : 100
+  UnifiControllerOutboudTrafficNetworkAclEntry:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: true
+      NetworkAclId: !Ref UnifiControllerNetworkAcl
+      Protocol: -1 # All
+      RuleAction : allow
+      RuleNumber : 100
+  UnifiControllerDHCPOptions:
+    Type: "AWS::EC2::DHCPOptions"
+    Properties:
+      # DomainName: ec2.internal
+      DomainNameServers:
+        - AmazonProvidedDNS
+      Tags:
+        - Key: Project
+          Value: it-services
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-unifi
+        - Key: "prx:cloudformation:stack-name"
+          Value: !Ref AWS::StackName
+        - Key: "prx:cloudformation:stack-id"
+          Value: !Ref AWS::StackId
+  UnifiControllerDHCPOptionsAssociation:
+    Type: "AWS::EC2::VPCDHCPOptionsAssociation"
+    Properties:
+      DhcpOptionsId: !Ref UnifiControllerDHCPOptions
+      VpcId: !Ref UnifiControllerVPC
+  UnifiControllerServiceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref UnifiControllerVPC
+      GroupDescription: Traffic rules for Unifi service
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 6789
+          ToPort: 6789
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: udp
+          FromPort: 3478
+          ToPort: 3478
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: udp
+          FromPort: 10001
+          ToPort: 10001
+      Tags:
+        - Key: Project
+          Value: it-services
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-unifi-service
+        - Key: "prx:cloudformation:stack-name"
+          Value: !Ref AWS::StackName
+        - Key: "prx:cloudformation:stack-id"
+          Value: !Ref AWS::StackId
+  UnifiControllerLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      RetentionInDays: 14
+  UnifiControllerService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref ECSCluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 0
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref UnifiControllerServiceSecurityGroup
+          Subnets:
+            - !Ref UnifiControllerSubnet1
+      # Role: !Ref ECSServiceIAMRole
+      ServiceName: !Sub ${AWS::StackName}-Unifi
+      TaskDefinition: !Ref UnifiControllerTaskDefinition
+  UnifiControllerTaskExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+  UnifiControllerTaskDefinition:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      ContainerDefinitions:
+        - Cpu: 1
+          Environment:
+            - Name: TZ
+              Value: "America/New_York"
+            - Name: RUNAS_UID0
+              Value: false
+          Essential: true
+          Image: jacobalberty/unifi:stable
+          LinuxParameters:
+            InitProcessEnabled: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref UnifiControllerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Sub ${AWS::StackName}-Unifi
+          Memory: 950
+          Name: "unifi-controller"
+          PortMappings:
+            # Device command/control
+            - ContainerPort: 8080
+              HostPort: 8080
+            # Web interface + API
+            - ContainerPort: 8443
+              HostPort: 8443
+            # Speed Test
+            - ContainerPort: 6789
+              HostPort: 6789
+              Protocol: udp
+            # STUN service
+            - ContainerPort: 3478
+              HostPort: 3478
+              Protocol: udp
+            # UBNT Discovery
+            - ContainerPort: 10001
+              HostPort: 10001
+              Protocol: udp
+      Cpu: "256"
+      ExecutionRoleArn: !GetAtt UnifiControllerTaskExecutionRole.Arn
+      Memory: "1GB"
+      NetworkMode: awsvpc
+      # PlacementConstraints:
+      RequiresCompatibilities:
+        - FARGATE
+      # TaskRoleArn:
+      # Volumes:
